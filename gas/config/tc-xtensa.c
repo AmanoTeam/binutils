@@ -4740,12 +4740,13 @@ update_next_frag_state (fragS *fragP)
 
 
 static bool
-next_frag_is_branch_target (const fragS *fragP)
+next_frag_is_branch_target (const fragS *fragP, const fragS **valid_until)
 {
   /* Sometimes an empty will end up here due to storage allocation issues,
      so we have to skip until we find something legit.  */
   for (fragP = fragP->fr_next; fragP; fragP = fragP->fr_next)
     {
+      *valid_until = fragP;
       if (fragP->tc_frag_data.is_branch_target)
 	return true;
       if (fragP->fr_fix != 0)
@@ -8055,14 +8056,23 @@ xtensa_fix_target_frags (void)
     for (frchP = seg_info (s)->frchainP; frchP; frchP = frchP->frch_next)
       {
 	fragS *fragP;
+	const fragS *valid_until = NULL;
+	bool is_branch_target = false;
 
 	/* Walk over all of the fragments in a subsection.  */
 	for (fragP = frchP->frch_root; fragP; fragP = fragP->fr_next)
 	  {
+	    if (fragP == valid_until)
+	      valid_until = NULL;
+
 	    if (fragP->fr_type == rs_machine_dependent
 		&& fragP->fr_subtype == RELAX_DESIRE_ALIGN_IF_TARGET)
 	      {
-		if (next_frag_is_branch_target (fragP))
+		if (!valid_until)
+		  is_branch_target = next_frag_is_branch_target (fragP,
+								 &valid_until);
+
+		if (is_branch_target)
 		  fragP->fr_subtype = RELAX_DESIRE_ALIGN;
 		else
 		  frag_wane (fragP);
